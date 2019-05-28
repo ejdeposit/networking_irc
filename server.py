@@ -51,14 +51,11 @@ def new_client(port):
     global mailBox
 
     print('adding port', port) 
-    #add port to addressList
     if port not in addressList:
         addressList.append(port)
     if port not in mailBox:
         mailBox[port]=[]       
-
-    #set up mailbox
-    print('address list: ', addressList)
+    #print('address list: ', addressList)
 
 def broadcast_msg(msgObj):
     global addressList
@@ -84,8 +81,14 @@ async def listen_to_client(reader, addr):
         data = await reader.read(100)
         msgStr = data.decode()
         if msgStr:
+            #add condional branching here to determine if string is 
+            #broadcast msg, room specific, or command for server
+            #e.g. change rooms
+
             print("Received %r" % (msgStr))
             msgObj= str_to_msgObj(msgStr)
+
+            #adding port number to msgObj
             msgObj['from']=addr[1]
             broadcast_msg(msgObj)
 
