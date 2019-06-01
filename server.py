@@ -2,14 +2,23 @@ import asyncio
 import ast
 import re
 import sounds
+import time
 
-#helper print function
+#sound = 1
+#helper print functions
 def pf(thing):
     thingStr = str(thing)
     print(thingStr, f' = {thing}, type = {type(thing)}')
 
-#codes tell the server that client message is a command
-codes = ['m!', 'l!', 'q!', 'j', 'c']
+def pfo(string, thing):
+    print(string, f' = {thing}, type = {type(thing)}, len = {len(thing)}')
+
+def pfct():
+    pfo('CT', clientTracker)
+    
+#codes tell the server that client message is a command message or a special
+#message 'gram'.
+codes = ['u!','s!', 'b!','l!', 'q!', 'c', 'j', 's']
 #addressList is list of all client port numbers(int)
 addressList=[]
 
@@ -22,6 +31,11 @@ mailBox={}
 #and deliver message to each mailbox of each client in list.  Clients will 
 #have to maintain their own list of what rooms they are in on their side.
 chatRooms={}
+
+#clientTracker is a dictionary. because clients can join multiple rooms, 
+#it is necessary to keep track of joined rooms as well as the 'current'
+#room that any given client is in. 
+clientTracker={}
 
 def is_connected():
     #need some way to determine if client is still connected.  if not 
@@ -36,6 +50,9 @@ def delete_client(port):
         if port in chatRooms[room]:
             del chatRooms[room][port]
             print(f'{port} deleted!')
+    for i in addressList:
+        if i == port:
+            del addressList[i]
 
 def delete_room(room):
       
@@ -44,113 +61,88 @@ def delete_room(room):
         print(f'{room} deleted!')
 
 def alert_add_to_room(port, username):
-    global chatRooms
-    global mailBox
 
     for room in chatRooms.keys():
-        pf(room)
-        if port in chatRooms[room]:
+        if clientTracker[port]['current'] == room:
             for other_port in chatRooms[room].keys():
-                if port != other_port: 
-                    alert = '\n'+chatRooms[room][port]+' has joined '+room+'! Say hello!\n'
-                    mailBox[other_port].append(alert)
+                if port != other_port and clientTracker[other_port]['current'] == room: 
+                    alert = '\n'+username+' has joined '+room+'! Say hello!'
+                    mailBox[other_port][room].append(alert)
                 elif port == other_port:
-                    alert = '\nWelcome to '+room+' '+username+'! Happy chatting! \nMenu: (m!)'
-                    mailBox[port].append(alert)
+                    alert = {}
+                    alert['gram type'] = 'welcome alert'
+                    alert['prompt'] = '\nWelcome to \''+room+'\', '+username+'! Happy chatting! \n'
+                    alert['rooms'] = chatRooms
+                    alert['tracker'] = clientTracker
+                    alert['welcome room'] = room
+                    alertStr = str(alert)
+                    echo(port, alertStr)
 
 def alert_leave_room(port, room):
-   global chatRooms
-   global mailBox
       
    for other_port in chatRooms[room].keys():
-       if port != other_port:
+       if port != other_port and clientTracker[other_port]['current'] == room:
            alert = '\n'+chatRooms[room][port]+' has left the room!'
-           mailBox[other_port].append(alert)
+           mailBox[other_port][room].append(alert)
 
-def leave_room(port, username):
-   global chatRooms
-   global mailBox
-
-   for room in chatRooms.keys():
-       if port in chatRooms[room].keys():
-          if room == 'General':
-              return 1
-          else: 
-              alert_leave_room(port, room)
-              chatRooms['General'][port] = username 
-              remove_from_room(port, room)
-              delete_room(room)
-              return 0
+def leave_room(port):
+   
+   current_room = clientTracker[port]['current']
+   if current_room == 'General':
+       return 1
+   else:
+       current_room = clientTracker[port]['current']
+       for i, room in enumerate(clientTracker[port]['joined rooms']):
+           if room == current_room:
+               del clientTracker[port]['joined rooms'][i]
+       clientTracker[port]['current'] = 'General' 
+       pfct()
+       alert_leave_room(port, current_room)
+       remove_from_room(port, current_room)
+       #delete_room(room)
+       return 0
 
 def remove_from_room(port, room):
-    #remove client from specificed chatroom list in chatroom dictionary
-    global chatRooms
-    
-    del chatRooms[room][port]
+    #remove client from specificed chatroom list in chatroom dictionary 
+    del chatRooms[room][port] 
     print(f'Removing {port} from {room}!')
     print(f'After remove {chatRooms}')
  
 def add_to_room(port, username, room):
     #add client from specificed chatroom list in chatroom dictionary
-    global chatRooms
-
-    f_room = {}
-    for former_room in chatRooms.keys():
-        if port in chatRooms[former_room]:
-            f_room = former_room
-            alert_leave_room(port, former_room)
-            remove_from_room(port, former_room)
     if room not in chatRooms.keys():
         chatRooms[room]={}
-        chatRooms[room][port] = username
-    elif port not in chatRooms[room].keys():
-        chatRooms[room][port] = username
-    delete_room(f_room)
-    alert_add_to_room(port, username)
+        msg = '\''+room+'\' created! You are automatically a member, but you\'ll need to switch (s) to start chatting.'
+        echo(port, msg)
+    chatRooms[room][port] = username
+    if room not in clientTracker[port]['joined rooms']:
+        clientTracker[port]['joined rooms'].append(room)
+        mailBox[port][room] = []
+        pfct()
     print(f'after add {chatRooms}')
 
-def echo_chatRooms(port, echo_roomGram):
-    #send back the chatRooms to clients when they ask for a room change
-    global chatRooms
-    global mailBox
-
-    for room in chatRooms.keys():
-         for key in chatRooms[room].keys():
-             if port == key:
-                 mailBox[key].append(echo_roomGram)                
-
 def echo(port, msg):
-   global mailbox
-   mailBox[port].append(msg)
+   mailBox[port][clientTracker[port]['current']].append(msg)
 
 def new_msgObj(msg):
-    #can add client name to msgObj on client side. server adds port number
-    #on its side
     msgObj={}
     msgObj['contents']= msg
     return msgObj
 
-def broadcast_msg(msgObj):
-    global addressList
-    global mailBox
-    global chatRooms
-     
-    current_port = msgObj['from']
-    for room in chatRooms.keys():
-        for port in addressList:
-            if port in chatRooms[room] and current_port in chatRooms[room]:
-                #print(f'matching port = {port}')
-                if port != current_port: 
-                    msg=msgObj['contents']
-                    print(f'msg = {msg}')
-                    mailBox[port].append(msg)
+def broadcast_msg(port, msgObj):
+   
+    room = clientTracker[port]['current']
+    for other_port in addressList:
+        #if other_port in chatRooms[room].keys():
+        if room in clientTracker[other_port]['joined rooms']:
+            if other_port != port: 
+                msg=msgObj['contents']
+                print(f'msg = {msg}')
+                mailBox[other_port][room].append(msg)
 
 def check_mail(port):
-    global addressList
-    global mailBox
-
-    if(mailBox[port]):
-        msg= mailBox[port].pop(0)
+    if(mailBox[port][clientTracker[port]['current']]):
+        msg= mailBox[port][clientTracker[port]['current']].pop(0)
         print(f'retreiving: {msg!r}')
         return msg
     return None
@@ -158,47 +150,52 @@ def check_mail(port):
 async def listen_to_client(reader, addr, port, username):
     
     while True:
-        global codes
         data = await reader.read(100)
         msgStr = data.decode()
-        #checking if room message
+        pf(msgStr)
+        #checking if command message
         if  msgStr.lower() in codes:
             if msgStr == codes[0]:
                 echo_roomGram = {}
-                echo_roomGram['echo rooms'] = chatRooms
+                echo_roomGram['gram type'] = 'echo rooms'
+                echo_roomGram['rooms'] =chatRooms
+                echo_roomGram['tracker'] = clientTracker
                 echo_roomGramStr = str(echo_roomGram)
-                echo_chatRooms(port, echo_roomGramStr)
-            elif msgStr == codes[1]:
-                general = leave_room(port, username)
-                leave_Gram = {}
+                echo(port, echo_roomGramStr)
+            elif msgStr == codes[3]:
+                general = leave_room(port)
                 if general:
-                    leave_Gram['leave'] = 'You\'re in the General room. Do you want to quit the chat box? (q!) \
-                                          \nDo nothing to stay here.'
+                    prompt = 'You\'re in the General room! Do you want to quit the chat box? (q!) \
+                              \n(Do nothing to stay here.)'
                 else: 
-                    leave_Gram['leave'] = 'You\'ve returned to the General room. Say hello! \nMenu: (m!)'
-                leave_GramStr = str(leave_Gram)
-                echo(port, leave_GramStr)
-            elif msgStr == codes[2]:
-                delete_client(port) 
+                    prompt = '\nYou\'ve returned to the General room. Say hello! \nMenu: (m!)'
+                echo(port, prompt)
+            elif msgStr == codes[4]:
+                delete_client_from_room(port) 
                 break
             elif msgStr.lower() == 'j':
                 room_chooseGram = {}
-                room_chooseGram['room choose']= {}
+                room_chooseGram['gram type']= 'room choose'
                 prompt = '\nTo join a room, type \'j!\' followed by the corresponding number of the room you wish to join:\n '
-                room_chooseGram['room choose']['prompt'] = prompt 
-                room_chooseGram['room choose']['rooms'] = chatRooms
+                room_chooseGram['prompt'] = prompt 
+                room_chooseGram['rooms'] = chatRooms
+                room_chooseGram['joined rooms'] = clientTracker[port]['joined rooms']
                 room_len = len(chatRooms.keys())
-                room_chooseGram['room choose']['length'] = room_len
+                room_chooseGram['length'] = room_len
                 room_chooseGramStr = str(room_chooseGram)
                 echo(port, room_chooseGramStr)
             elif msgStr.lower() == 'c': 
-                create_roomGram = {}
-                create_roomGram['create room'] = {}
-                prompt = 'To create a room, type \'c! \' followed by the name of the room you\'d like to create.\
+                prompt = 'To create a room, type \'c!\' followed by the name of the room you\'d like to create.\
                           \nIf the room already exists, you will join that room.'
-                create_roomGram['create room']['prompt']  = prompt
-                create_roomGramStr = str(create_roomGram)
-                echo(port, create_roomGramStr)
+                echo(port, prompt)
+            elif msgStr.lower() == 's':
+                switchGram = {}
+                switchGram['gram type'] = 'switch room'
+                switchGram['joined rooms'] = clientTracker[port]['joined rooms']
+                switchGram['current'] = clientTracker[port]['current']
+                switchGram['prompt'] = 'To switch rooms, type \'s!\' followed by the corresponding number of the room you wish to join:\n'
+                switchGramStr = str(switchGram)
+                echo(port, switchGramStr)
             msgStr = None
         #if message object
         if msgStr != None:
@@ -213,15 +210,20 @@ async def listen_to_client(reader, addr, port, username):
               room_name = msgObj['create']
               pf(room_name)
               add_to_room(port, username, room_name)
+            elif 'switch' in msgObj.keys():
+              room = msgObj['switch']
+              clientTracker[port]['current'] = msgObj['switch']
+              alert_add_to_room(port, username) 
+              pfct()
             #adding port number to msgObj
             else:
                 msgObj['from']=addr[1]
                 print(f'msgObj = {msgObj!r}')
-                broadcast_msg(msgObj)
+                broadcast_msg(port, msgObj)
 
-async def send_to_client(writer, addr):
+async def send_to_client(writer, port):
     while True:
-        msgOut= check_mail(addr[1])
+        msgOut= check_mail(port)
         if msgOut:
             writer.write(msgOut.encode())
             await writer.drain()
@@ -229,15 +231,12 @@ async def send_to_client(writer, addr):
         await asyncio.sleep(0)
 
 def new_client(port, username):
-    global addressList
-    global mailBox
-    global chatRooms
-
     if port not in addressList:
         print('adding port', port) 
         addressList.append(port)
     if port not in mailBox:
-        mailBox[port]=[]       
+        mailBox[port]={}
+        mailBox[port]['General'] = []
     if len(chatRooms) == 0:
         chatRooms['General'] = {}
     chatRooms['General'][port] = username
@@ -246,23 +245,29 @@ def new_client(port, username):
     print(chatRooms)
 
 async def main(reader, writer):
-    
     global addressList
-    global lobby
     global chatRooms
+    global clientTracker
 
     addr = writer.get_extra_info('peername')
     port = addr[1]
     username = await reader.read(100)
     username = username.decode()
+      
+    clientTracker[port] = {}
+    clientTracker[port]['current'] = 'General'
+    clientTracker[port]['joined rooms'] = []
+    clientTracker[port]['joined rooms'].append('General')
+    pfo('CT', clientTracker)
+    
     new_client(port, username)
-
-    await asyncio.gather(listen_to_client(reader, addr, port, username), send_to_client(writer, addr))
-    if no data 
+    
+    await asyncio.gather(listen_to_client(reader, addr, port, username), send_to_client(writer, port))
+     
     print("Close the client socket")
     writer.close()
 
-#127.0.0.1 is local host
+#Create event loop, start server
 loop = asyncio.get_event_loop()
 coro = asyncio.start_server(main, '127.0.0.1', 8888, loop=loop)
 server = loop.run_until_complete(coro)
