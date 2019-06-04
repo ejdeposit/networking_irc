@@ -4,7 +4,7 @@ import re
 import sounds
 import time
 
-#sound = 1
+sound = 1
 #helper print functions
 def pf(thing):
     thingStr = str(thing)
@@ -18,7 +18,7 @@ def pfct():
     
 #codes tell the server that client message is a command message or a special
 #message 'gram'.
-codes = ['u!','s!', 'b!','l!', 'q!', 'c', 'j', 's']
+codes = ['u!','s!', 't!','l!', 'q!', 'c', 'j', 's']
 #addressList is list of all client port numbers(int)
 addressList=[]
 
@@ -55,7 +55,7 @@ def delete_client(port):
             del addressList[i]
 
 def delete_room(room):
-      
+    #This function was part of an earlier version that deleted rooms if everyone left.  
     if len(chatRooms[room]) == 0 and room != 'General':
         del chatRooms[room]
         print(f'{room} deleted!')
@@ -171,7 +171,7 @@ async def listen_to_client(reader, addr, port, username):
                     prompt = '\nYou\'ve returned to the General room. Say hello! \nMenu: (m!)'
                 echo(port, prompt)
             elif msgStr == codes[4]:
-                delete_client_from_room(port) 
+                #delete_client_from_room(port) 
                 break
             elif msgStr.lower() == 'j':
                 room_chooseGram = {}
@@ -268,6 +268,7 @@ async def main(reader, writer):
     writer.close()
 
 #Create event loop, start server
+sounds.login()
 loop = asyncio.get_event_loop()
 coro = asyncio.start_server(main, '127.0.0.1', 8888, loop=loop)
 server = loop.run_until_complete(coro)

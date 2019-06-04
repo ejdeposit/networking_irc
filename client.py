@@ -4,12 +4,12 @@ import sys
 import ast
 import sounds
 
-sound = 1
-#turn sound of by settin to 0
+#sound = 1
+#turn sound off by setting to 0
 room_len = int()
 myrooms = []
 chat_room_dict = {}
-codes = ['u!', 's!', 'b!', 'l!', 'q!', 'j', 'c', 's']
+codes = ['u!', 's!', 't!', 'l!', 'q!', 'j', 'c', 's']
 #helper print function
 def pf(thing):
     thingStr = str(thing)
@@ -26,6 +26,7 @@ def print_room_options():
     print('List all active users:                          (u!)')
     print('Send a message to other rooms:                  (b!)')
     print('Leave current room:                             (l!)')
+    print('Turn off/on sound:                              (t!)')
     print('Quit the Chat Box:                              (q!)')
     print()
 
@@ -45,6 +46,9 @@ def make_createGram(line):
     createGram = {}
     room_name = line[2:] 
     room_name = room_name.strip()
+    if room_name == '':
+        print('Sorry, rooms cannot be named blank spaces.')
+        return 0
     if len(room_name) > 25: 
         print('Sorry, that room name is too long.')
         return 0
@@ -122,7 +126,7 @@ def make_switchGram(line):
                 return 0 
 
 async def send_to_server(reader, writer, username, loop):
-
+    global sound
     while True:
         line= await loop.run_in_executor(None, sys.stdin.readline)
         print()
@@ -133,8 +137,16 @@ async def send_to_server(reader, writer, username, loop):
             elif line == 'm!':
                 print_room_options()
             elif line.lower() in codes:
+                if line == codes[2]: 
+                    if sound:
+                        sound = 0
+                    else: 
+                        sound = 1
+                    line = None
                 if line == codes[3]:
                     if len(myrooms) > 1:
+                        if sound:
+                            sounds.leave()
                         print('----------------------General----------------------')
                 if line == codes[4]:
                     print('\n\nQuitting Chat Box! Seeya next time. :)\n\n')
@@ -145,7 +157,8 @@ async def send_to_server(reader, writer, username, loop):
                     await writer.drain()
                     writer.close()
                     exit(0)
-                writer.write(line.encode())
+                if line:    
+                    writer.write(line.encode())
             elif line[0:2] == 'j!':
                 joinGramStr = make_joinGram(line)
                 line = None 
@@ -158,11 +171,13 @@ async def send_to_server(reader, writer, username, loop):
                 line = None
                 if createGramStr != 0:
                     if sound:
-                        sounds.join()
+                        sounds.create()
                     writer.write(createGramStr.encode())
             elif line[0:2] == 's!':
                 switchGramStr = make_switchGram(line)
                 if switchGramStr != 0:
+                    if sound:
+                        sounds.switch()
                     writer.write(switchGramStr.encode())
             elif line:
                 #make msgObj
@@ -198,7 +213,9 @@ async def listen_to_server(reader, writer, myport, username):
     global room_len
     global chat_room_dict
     global myrooms
+    
     while True:
+        
         data = await reader.read(1000)
         
         test = data.decode()
@@ -247,17 +264,25 @@ async def listen_to_server(reader, writer, myport, username):
             data = None
         if data:
             print(data.decode())
+            if sound:
+                sounds.message()
             print()
             await asyncio.sleep(0)
 
 
 async def main(loop):
+    global sound
+    sound = 1
+    if sound:
+        sounds.login()
     #opens connection to server
     reader, writer = await asyncio.open_connection('127.0.0.1', 8888, loop=loop)
     
     print("\nWelcome to the chat box! What's your name, stranger?: ", end = '')
     username = input('')
     print(f'Hello, {username}, Enjoy!\n')
+    if sound:
+        sounds.switch()
     print('By the way, you begin in the \'General\' chat room. You can access the menu by typing (m!). \
          \nYou can join and leave rooms as you wish, but you can\'t leave \'General\' without quitting.')
     
@@ -275,8 +300,6 @@ async def main(loop):
 
 
 #problem: this client sends message and then closes loop.  need to listen
-if sound:
-    sounds.login()
 loop = asyncio.get_event_loop()
 loop.run_until_complete(main(loop))
 loop.close()
