@@ -4,7 +4,7 @@ import re
 import sounds
 import time
 
-sound = 1
+sound = 0
 #helper print functions
 def pf(thing):
     thingStr = str(thing)
@@ -199,6 +199,7 @@ async def listen_to_client(reader, addr, port, username):
             msgStr = None
         #if message object
         if msgStr != None:
+        #if msgStr != None and msgStr !='':
             print(f"Received {msgStr!r}")
             msgObj= ast.literal_eval(msgStr)
             #if isinstance(msgObj, dict): 
@@ -268,7 +269,8 @@ async def main(reader, writer):
     writer.close()
 
 #Create event loop, start server
-sounds.login()
+if sound:
+    sounds.login()
 loop = asyncio.get_event_loop()
 coro = asyncio.start_server(main, '127.0.0.1', 8888, loop=loop)
 server = loop.run_until_complete(coro)

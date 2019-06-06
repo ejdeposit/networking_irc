@@ -4,7 +4,7 @@ import sys
 import ast
 import sounds
 
-#sound = 1
+sound = 0
 #turn sound off by setting to 0
 room_len = int()
 myrooms = []
@@ -127,10 +127,14 @@ def make_switchGram(line):
 
 async def send_to_server(reader, writer, username, loop):
     global sound
-    while True:
+    connStatus= True
+    while (not writer.is_closing()) and connStatus:
         line= await loop.run_in_executor(None, sys.stdin.readline)
         print()
-        if line:
+        #exit command
+        if line == 'exit()':
+            connection= False
+        if line and line != 'exit()':
             line=line[:-1:]
             if line.strip() == '':
                 line = None
@@ -186,7 +190,9 @@ async def send_to_server(reader, writer, username, loop):
                 writer.write(msgStr.encode())
             await writer.drain()
             line=None
-
+    writer.close()
+    await shut_down()
+    
 def show_active_users(myport, chatRooms, clientTracker, room_to_display):
 
     if room_to_display == 'all':
@@ -214,7 +220,7 @@ async def listen_to_server(reader, writer, myport, username):
     global chat_room_dict
     global myrooms
     
-    while True:
+    while not reader.at_eof(): 
         
         data = await reader.read(1000)
         
@@ -268,15 +274,15 @@ async def listen_to_server(reader, writer, myport, username):
                 sounds.message()
             print()
             await asyncio.sleep(0)
+    await shut_down()
 
-
-async def main(loop):
+async def main():
     global sound
-    sound = 1
+    #sound = 1
     if sound:
         sounds.login()
     #opens connection to server
-    reader, writer = await asyncio.open_connection('127.0.0.1', 8888, loop=loop)
+    reader, writer = await asyncio.open_connection('127.0.0.1', 8888)
     
     print("\nWelcome to the chat box! What's your name, stranger?: ", end = '')
     username = input('')
@@ -298,15 +304,17 @@ async def main(loop):
     print('Close the socket')
     writer.close()
 
+async def shut_down():
+    taskList= asyncio.all_task(asyncio.get_running_loop())
+    for task in taskList:
+        task.cancel()
 
-#problem: this client sends message and then closes loop.  need to listen
-loop = asyncio.get_event_loop()
-loop.run_until_complete(main(loop))
-loop.close()
 
-#loop.run_until_complete(tcp_echo_client(loop))
-#try:
-    #loop.run_forever()
-#except KeyboardInterrupt:
-#    pass
+try:
+    asyncio.run(main())
+except:
+    print('connection gracefully lost')
+
+#loop = asyncio.get_event_loop()
+#loop.run_until_complete(main(loop))
 #loop.close()
