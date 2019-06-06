@@ -262,9 +262,11 @@ async def main(reader, writer):
     pfo('CT', clientTracker)
     
     new_client(port, username)
-    
-    await asyncio.gather(listen_to_client(reader, addr, port, username), send_to_client(writer, port))
-     
+    try:
+        await asyncio.gather(listen_to_client(reader, addr, port, username), send_to_client(writer, port))
+    except:
+        pass
+
     print("Close the client socket")
     writer.close()
 
