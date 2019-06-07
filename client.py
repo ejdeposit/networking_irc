@@ -132,10 +132,10 @@ async def send_to_server(reader, writer, username, loop):
         line= await loop.run_in_executor(None, sys.stdin.readline)
         print()
         #exit command
+        line=line[:-1:]
         if line == 'exit()':
-            connection= False
+            connStatus= False
         if line and line != 'exit()':
-            line=line[:-1:]
             if line.strip() == '':
                 line = None
             elif line == 'm!':
