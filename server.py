@@ -3,6 +3,7 @@ import ast
 import re
 import sounds
 import time
+import sys
 
 sound = 0
 #helper print functions
@@ -245,6 +246,20 @@ def new_client(port, username):
     alert_add_to_room(port, username)
     print(chatRooms)
 
+async def disconnect_client(writer):
+   global exitQueue
+   loop= asyncio.get_running_loop()
+
+   while True:
+       line= await loop.run_in_executor(None, sys.stdin.readline)
+       line=line[:-1:]
+
+       if line:
+           exitCode='exit()'
+           writer.write(exitCode.encode())
+           print('deleting client: ', line)
+       line=None
+
 async def main(reader, writer):
     global addressList
     global chatRooms
@@ -262,10 +277,12 @@ async def main(reader, writer):
     pfo('CT', clientTracker)
     
     new_client(port, username)
-    try:
-        await asyncio.gather(listen_to_client(reader, addr, port, username), send_to_client(writer, port))
-    except:
-        pass
+    await asyncio.gather(listen_to_client(reader, addr, port, username), send_to_client(writer, port), disconnect_client(writer))
+   #try:
+   #    #await asyncio.gather(listen_to_client(reader, addr, port, username), send_to_client(writer, port))
+   #    await asyncio.gather(listen_to_client(reader, addr, port, username), send_to_client(writer, port), disconnect_client())
+   #except:
+   #    pass
 
     print("Close the client socket")
     writer.close()

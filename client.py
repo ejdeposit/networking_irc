@@ -223,9 +223,15 @@ async def listen_to_server(reader, writer, myport, username):
     while not reader.at_eof(): 
         
         data = await reader.read(1000)
-        
         test = data.decode()
-        test = str(test)
+
+        #if test is 'exit()':
+        if test == 'exit()':
+            writer.close()
+            print('received exit code')
+            await shut_down()
+            
+        test = str(test) 
         if '{' in test:
             for i, char in enumerate(test):
                 if char == '{':
