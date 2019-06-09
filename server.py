@@ -5,7 +5,7 @@ import sounds
 import time
 import sys
 
-sound = 0
+sound = 1
 #helper print functions
 def pf(thing):
     thingStr = str(thing)
@@ -19,7 +19,7 @@ def pfct():
     
 #codes tell the server that client message is a command message or a special
 #message 'gram'.
-codes = ['u!','s!', 't!','l!', 'q!', 'c', 'j', 's']
+codes = ['u!','s!','t!','l!', 'q!', 'c', 'j', 's', 'b']
 #addressList is list of all client port numbers(int)
 addressList=[]
 
@@ -156,6 +156,8 @@ async def listen_to_client(reader, addr, port, username):
         pf(msgStr)
         #checking if command message
         if  msgStr.lower() in codes:
+            print('command detected')
+            print(codes)
             if msgStr == codes[0]:
                 echo_roomGram = {}
                 echo_roomGram['gram type'] = 'echo rooms'
@@ -197,6 +199,16 @@ async def listen_to_client(reader, addr, port, username):
                 switchGram['prompt'] = 'To switch rooms, type \'s!\' followed by the corresponding number of the room you wish to join:\n'
                 switchGramStr = str(switchGram)
                 echo(port, switchGramStr)
+            elif msgStr == 'b':
+                print('B!')
+                broadcastGram = {}
+                broadcastGram['gram type'] = 'broadcast'
+                broadcastGram['joined rooms'] = clientTracker[port]['joined rooms']
+                room_len = len(chatRooms.keys())
+                broadcastGram['length'] = room_len 
+                broadcastGram['prompt'] = 'Type the numbers of the rooms you\'d like to broadcast to from below (with commas):\n'
+                broadcastGramStr = str(broadcastGram)
+                echo(port, broadcastGramStr)
             msgStr = None
         #if message object
         if msgStr != None:
@@ -217,6 +229,9 @@ async def listen_to_client(reader, addr, port, username):
               clientTracker[port]['current'] = msgObj['switch']
               alert_add_to_room(port, username) 
               pfct()
+            elif 'broadcast rooms' in msgObj.keys():
+              rooms = msgObj['broadcast rooms']
+              print(rooms)
             #adding port number to msgObj
             else:
                 msgObj['from']=addr[1]

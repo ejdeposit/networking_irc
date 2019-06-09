@@ -4,12 +4,12 @@ import sys
 import ast
 import sounds
 
-sound = 0
+sound = 1
 #turn sound off by setting to 0
 room_len = int()
 myrooms = []
 chat_room_dict = {}
-codes = ['u!', 's!', 't!', 'l!', 'q!', 'j', 'c', 's']
+codes = ['u!', 's!', 't!', 'l!', 'q!', 'b!', 'j', 'c', 's', 'b']
 #helper print function
 def pf(thing):
     thingStr = str(thing)
@@ -125,6 +125,45 @@ def make_switchGram(line):
                 print('Room number is out of range or you didn\'t type \'s\' before switching!')
                 return 0 
 
+def make_broadcastGram(line):
+    global myrooms
+    if len(myrooms) == 1: 
+        print('Please type(b) to enter the broadcast menu. Remember, you must join (j) a room first!')
+        return 0
+    else: 
+        broadcastGram = {}
+        broadcastGram['broadcast rooms'] = []
+        room_num = line[2:]
+        b_rooms = '['+room_num+']'
+        b_rooms = ast.literal_eval(b_rooms)
+        if type(b_rooms) == list:
+            print(b_rooms)
+            valid_rooms = False
+            for room_num in b_rooms:
+                for i in room_num: 
+                    x = (ord(i)-48) 
+                    if x <= 9 and x >= 0:
+                        valid_room = True    
+                    else:
+                        valid_room = False
+                        break
+                if not valid_room:
+                    print('Invalid room number in list!')
+                    return 0
+                else:
+                    room_num = int(room_num)
+                    if room_num <= len(myrooms)-1:
+                        broadcastGram['broadcast rooms'].append(myrooms[room_num])
+                        print(f'Sending message to {myrooms[room_num]}!')
+                    else:
+                        print('Room number is out of range or you didn\'t type \'b\' before selecting!')
+                        return 0
+        else: 
+            print('Something went wrong, did you separate your numbers with commas?\n')
+            return 0
+
+    return str(broadcastGram)
+
 async def send_to_server(reader, writer, username, loop):
     global sound
     connStatus= True
@@ -179,10 +218,19 @@ async def send_to_server(reader, writer, username, loop):
                     writer.write(createGramStr.encode())
             elif line[0:2] == 's!':
                 switchGramStr = make_switchGram(line)
+                line = None
                 if switchGramStr != 0:
                     if sound:
                         sounds.switch()
                     writer.write(switchGramStr.encode())
+            elif line[0:2] == 'b!': 
+                broadcastGramStr = make_broadcastGram(line)
+                line = None
+                if broadcastGramStr != 0: 
+                    if sound: 
+                        for i in range(0, 3):
+                            sounds.message()
+                    writer.write(broadcastGramStr.encode())
             elif line:
                 #make msgObj
                 msgObj=new_msgObj(line, username)
@@ -273,6 +321,12 @@ async def listen_to_server(reader, writer, myport, username):
                     room = data['welcome room']
                     print(data['prompt'])
                     show_active_users(myport, chatRooms, clientTracker, room)
+                elif gramtype == 'broadcast':
+                    myrooms = data['joined rooms']
+                    room_len = data['length']
+                    print(data['prompt'])
+                    for i, room in enumerate(myrooms):
+                        print(f'Send to {room}: {i}')                        
             data = None
         if data:
             print(data.decode())
