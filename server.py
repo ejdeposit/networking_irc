@@ -5,7 +5,7 @@ import sounds
 import time
 import sys
 
-sound = 1
+sound = 0
 #helper print functions
 def pf(thing):
     thingStr = str(thing)
@@ -37,6 +37,8 @@ chatRooms={}
 #it is necessary to keep track of joined rooms as well as the 'current'
 #room that any given client is in. 
 clientTracker={}
+
+disconnectQueue=[]
 
 def is_connected():
     #need some way to determine if client is still connected.  if not 
@@ -261,8 +263,20 @@ def new_client(port, username):
     alert_add_to_room(port, username)
     print(chatRooms)
 
-async def disconnect_client(writer):
-   global exitQueue
+async def disconnect_client(writer, port):
+    global disconnectQueue
+
+    while port not in disconnectQueue:
+        
+        await asyncio.sleep(0)
+
+    exitCode='exit()'
+    writer.write(exitCode.encode())
+    writer.close()
+    print('deleting client: ', port)
+
+async def disconnect_input(port):
+   global disconnectQueue
    loop= asyncio.get_running_loop()
 
    while True:
@@ -270,9 +284,8 @@ async def disconnect_client(writer):
        line=line[:-1:]
 
        if line:
-           exitCode='exit()'
-           writer.write(exitCode.encode())
-           print('deleting client: ', line)
+           disconnectQueue=[]
+           disconnectQueue.append(port)
        line=None
 
 async def main(reader, writer):
@@ -292,12 +305,12 @@ async def main(reader, writer):
     pfo('CT', clientTracker)
     
     new_client(port, username)
-    await asyncio.gather(listen_to_client(reader, addr, port, username), send_to_client(writer, port), disconnect_client(writer))
+    await asyncio.gather(listen_to_client(reader, addr, port, username), send_to_client(writer, port), disconnect_input(port), disconnect_client(writer, port))
    #try:
-   #    #await asyncio.gather(listen_to_client(reader, addr, port, username), send_to_client(writer, port))
-   #    await asyncio.gather(listen_to_client(reader, addr, port, username), send_to_client(writer, port), disconnect_client())
+        #await asyncio.gather(listen_to_client(reader, addr, port, username), send_to_client(writer, port), disconnect_input(port), disconnect_client(writer, port))
    #except:
-   #    pass
+        #print('Client ', port, 'has disconnected.')
+        #pass
 
     print("Close the client socket")
     writer.close()

@@ -4,7 +4,7 @@ import sys
 import ast
 import sounds
 
-sound = 1
+sound = 0
 #turn sound off by setting to 0
 room_len = int()
 myrooms = []
@@ -365,16 +365,16 @@ async def main():
     writer.close()
 
 async def shut_down():
-    taskList= asyncio.all_task(asyncio.get_running_loop())
+    taskList= asyncio.all_tasks(asyncio.get_running_loop())
     for task in taskList:
         task.cancel()
 
 
-try:
-    asyncio.run(main())
-except:
-    print('connection gracefully lost')
+#try:
+#    asyncio.run(main())
+#except:
+#    print('connection gracefully lost')
 
-#loop = asyncio.get_event_loop()
-#loop.run_until_complete(main(loop))
-#loop.close()
+loop = asyncio.get_event_loop()
+loop.run_until_complete(main())
+loop.close()
