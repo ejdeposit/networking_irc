@@ -4,7 +4,7 @@ import sys
 import ast
 import sounds
 
-sound = 0
+sound = 1
 #turn sound off by setting to 0
 room_len = int()
 myrooms = []
@@ -130,17 +130,28 @@ def make_broadcastGram(line):
     if len(myrooms) == 1: 
         print('Please type(b) to enter the broadcast menu. Remember, you must join (j) a room first!')
         return 0
-    else: 
+    else:
         broadcastGram = {}
         broadcastGram['broadcast rooms'] = []
+        rooms = []
         room_num = line[2:]
-        b_rooms = '['+room_num+']'
-        b_rooms = ast.literal_eval(b_rooms)
-        if type(b_rooms) == list:
-            print(b_rooms)
+        for i, char  in enumerate(room_num): 
+            if char == '!':
+                end = i
+                break
+        b_rooms = '['+room_num[:end]+']'
+        msg = room_num[end+1:].lstrip()
+        is_list = True
+        try:
+            b_rooms = ast.literal_eval(b_rooms)
+        except: 
+            is_list = False
+        if is_list and type(b_rooms) == list:
+            #print(b_rooms)
             valid_rooms = False
-            for room_num in b_rooms:
-                for i in room_num: 
+            for room_num in b_rooms: 
+                x = str(room_num)
+                for i in x:
                     x = (ord(i)-48) 
                     if x <= 9 and x >= 0:
                         valid_room = True    
@@ -153,8 +164,9 @@ def make_broadcastGram(line):
                 else:
                     room_num = int(room_num)
                     if room_num <= len(myrooms)-1:
+                        broadcastGram['message'] = msg
                         broadcastGram['broadcast rooms'].append(myrooms[room_num])
-                        print(f'Sending message to {myrooms[room_num]}!')
+                        print(f'Sending {msg} to {myrooms[room_num]}!')
                     else:
                         print('Room number is out of range or you didn\'t type \'b\' before selecting!')
                         return 0
@@ -195,6 +207,7 @@ async def send_to_server(reader, writer, username, loop):
                     print('\n\nQuitting Chat Box! Seeya next time. :)\n\n')
                     if sound:
                         sounds.logout()
+                    connStatus = False
                     #this code doesn't work: it's more of an idea of how it could work?
                     writer.write(line.encode())
                     await writer.drain()
@@ -228,8 +241,7 @@ async def send_to_server(reader, writer, username, loop):
                 line = None
                 if broadcastGramStr != 0: 
                     if sound: 
-                        for i in range(0, 3):
-                            sounds.message()
+                        sounds.login()
                     writer.write(broadcastGramStr.encode())
             elif line:
                 #make msgObj

@@ -5,7 +5,7 @@ import sounds
 import time
 import sys
 
-sound = 0
+sound = 1
 #helper print functions
 def pf(thing):
     thingStr = str(thing)
@@ -48,11 +48,14 @@ def is_connected():
     pass
 
 def delete_client(port):
+
     #remove client from chatRooms lists and addressList
     for room in chatRooms.keys():
         if port in chatRooms[room]:
             del chatRooms[room][port]
             print(f'{port} deleted!')
+    del clientTracker[port]
+    pfct()
     for i in addressList:
         if i == port:
             del addressList[i]
@@ -143,6 +146,16 @@ def broadcast_msg(port, msgObj):
                 print(f'msg = {msg}')
                 mailBox[other_port][room].append(msg)
 
+def broadcast_msg_multiple_rooms(port, msgObj, rooms):
+   
+    for room in rooms:
+        for other_port in addressList:
+            #if other_port in chatRooms[room].keys():
+            if room in clientTracker[other_port]['joined rooms']: 
+                msg=msgObj['contents']
+                print(f'msg = {msg}')
+                mailBox[other_port][room].append(msg)
+
 def check_mail(port):
     if(mailBox[port][clientTracker[port]['current']]):
         msg= mailBox[port][clientTracker[port]['current']].pop(0)
@@ -159,7 +172,6 @@ async def listen_to_client(reader, addr, port, username):
         #checking if command message
         if  msgStr.lower() in codes:
             print('command detected')
-            print(codes)
             if msgStr == codes[0]:
                 echo_roomGram = {}
                 echo_roomGram['gram type'] = 'echo rooms'
@@ -202,13 +214,15 @@ async def listen_to_client(reader, addr, port, username):
                 switchGramStr = str(switchGram)
                 echo(port, switchGramStr)
             elif msgStr == 'b':
-                print('B!')
                 broadcastGram = {}
                 broadcastGram['gram type'] = 'broadcast'
                 broadcastGram['joined rooms'] = clientTracker[port]['joined rooms']
                 room_len = len(chatRooms.keys())
                 broadcastGram['length'] = room_len 
-                broadcastGram['prompt'] = 'Type the numbers of the rooms you\'d like to broadcast to from below (with commas):\n'
+                s0 = 'To broadcast, type \'b!\' followed by the numbers of the rooms you\'d '
+                s1 = 'like to broadcast to from below (with commas), then type \'!\'. Then type your'
+                s2 = 'message. For example, \'b! 1, 3, 5 ! Hello.\' (Sends to \'Hello\' to 3 selected rooms) :\n'
+                broadcastGram['prompt'] = s0 + s1 + s2 
                 broadcastGramStr = str(broadcastGram)
                 echo(port, broadcastGramStr)
             msgStr = None
@@ -232,11 +246,15 @@ async def listen_to_client(reader, addr, port, username):
               alert_add_to_room(port, username) 
               pfct()
             elif 'broadcast rooms' in msgObj.keys():
+              msg = msgObj['message']
+              msg = chatRooms['General'][port]+': '+msg
               rooms = msgObj['broadcast rooms']
-              print(rooms)
+              msgObj = new_msgObj(msg)
+              msgObj['from'] = port
+              broadcast_msg_multiple_rooms(port, msgObj, rooms) 
             #adding port number to msgObj
             else:
-                msgObj['from']=addr[1]
+                msgObj['from']= port
                 print(f'msgObj = {msgObj!r}')
                 broadcast_msg(port, msgObj)
 
@@ -271,6 +289,7 @@ async def disconnect_client(writer, port):
         await asyncio.sleep(0)
 
     exitCode='exit()'
+    #delete_client(port)
     writer.write(exitCode.encode())
     writer.close()
     print('deleting client: ', port)
@@ -305,12 +324,15 @@ async def main(reader, writer):
     pfo('CT', clientTracker)
     
     new_client(port, username)
-    await asyncio.gather(listen_to_client(reader, addr, port, username), send_to_client(writer, port), disconnect_input(port), disconnect_client(writer, port))
-   #try:
-        #await asyncio.gather(listen_to_client(reader, addr, port, username), send_to_client(writer, port), disconnect_input(port), disconnect_client(writer, port))
-   #except:
-        #print('Client ', port, 'has disconnected.')
-        #pass
+    #await asyncio.gather(listen_to_client(reader, addr, port, username), send_to_client(writer, port),
+    #      disconnect_input(port), disconnect_client(writer, port))
+    try:
+        await asyncio.gather(listen_to_client(reader, addr, port, username), send_to_client(writer, port), 
+        disconnect_input(port), disconnect_client(writer, port))
+    except:
+        print('Client ', port, 'has disconnected.')
+        #delete_client(port)
+        pass
 
     print("Close the client socket")
     writer.close()
